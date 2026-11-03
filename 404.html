@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Torre Metal Indústria</title>
+<script>
+  // Link curto de cada empresa: /lca → /?empresa=lca ; /plataforma → /?plataforma=1 (o resto do endereço é mantido)
+  (function () {
+    var seg = location.pathname.split('/').filter(Boolean)[0] || ''
+    var destino = seg === 'plataforma' ? '/?plataforma=1' : /^[a-z0-9-]{2,30}$/i.test(seg) ? '/?empresa=' + seg.toLowerCase() : '/'
+    location.replace(destino + location.hash)
+  })()
+</script>
+</head>
+<body style="font-family:system-ui,sans-serif;padding:24px">Abrindo o sistema…</body>
+</html>
