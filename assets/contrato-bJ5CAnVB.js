@@ -1,0 +1,1 @@
+var e=`2026-11-04.3`,t=e=>e==null?`a combinar`:Number(e).toLocaleString(`pt-BR`,{style:`currency`,currency:`BRL`}),n=(e,t)=>Math.round(e/t*100)/100,r=(e,t)=>Math.round((e-n(e,t)*(t-1))*100)/100,i=(e,i)=>{let a=n(e,i),o=r(e,i);return`${i}x de ${t(a)}${o===a?``:` (última de ${t(o)})`}`};export{i as n,n as r,e as t};
