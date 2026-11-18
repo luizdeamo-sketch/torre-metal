@@ -1,0 +1,49 @@
+/* Torre de Controle - Aluminier · design system Capacity Case (navy, dourado, Syne + DM Sans). Sem largura máxima: ocupa a tela toda. */
+:root { --navy: #0d1117; --gold: #9c7518; --gold-light: #d7aa42; --gold-ink: #7a5b10; --gold-soft: #f6ebd2; --page: #f6f6f3; --surface: #ffffff; --line: #e4e6e2; --line-strong: #c9cfd8; --ink: #111827; --text: #2a3540; --muted: #5d6871; --danger: #b3382c; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--text); font-family: 'DM Sans', 'Segoe UI', Roboto, sans-serif; font-size: 15px; line-height: 23px; }
+a { color: var(--gold-ink); } a:hover { color: var(--gold); }
+input, select, textarea, button { font: inherit; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+table { border-collapse: collapse; width: 100%; }
+th { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: left; padding: 10px 12px; background: #eceee9; white-space: nowrap; }
+td { padding: 10px 12px; border-top: 1px solid var(--line); font-size: 14px; color: var(--text); white-space: nowrap; }
+td.r, th.r { text-align: right; }
+
+.centro { min-height: 60vh; display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; padding: 28px; text-align: center; color: var(--muted); }
+.btn { height: 44px; padding: 0 22px; border: 0; border-radius: 6px; background: var(--navy); color: #fff; font-weight: 600; cursor: pointer; position: relative; }
+.btn[disabled] { opacity: .6; cursor: default; }
+.link { border: 0; background: none; padding: 8px 4px; min-height: 44px; color: var(--gold-ink); font-weight: 600; cursor: pointer; text-decoration: underline; }
+.cartao { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+.h2 { font-family: Syne, Arial, sans-serif; font-size: 17px; margin: 0 0 8px; color: var(--ink); }
+.ajuda { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
+.vis { position: absolute; left: -9999px; }
+select { height: 40px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: #fff; color: var(--ink); }
+
+/* faixa de versão nova: nunca recarrega sozinho */
+.faixa-versao { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; padding: 10px 16px; background: var(--gold-soft); color: var(--ink); font-weight: 600; border-bottom: 1px solid var(--gold); }
+.faixa-versao button { height: 44px; padding: 0 18px; border: 0; border-radius: 6px; background: var(--navy); color: #fff; font-weight: 600; cursor: pointer; }
+
+.rodape { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 12px 28px 90px; color: var(--muted); font-size: 13px; }
+
+.sug { border-top: 1px solid var(--line); padding: 12px 0; display: flex; flex-direction: column; gap: 6px; }
+.sug .resposta { background: #e3ecf5; color: #1b2a3a; border-radius: 6px; padding: 8px 10px; }
+.sug .linha { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sug .linha input { flex: 1 1 260px; height: 40px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; }
+
+.modal { position: fixed; inset: 0; background: rgba(13, 17, 23, .55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 30; }
+.modal-caixa { background: #fff; border-radius: 16px; padding: 24px; width: min(560px, 100%); }
+.modal-caixa h2 { font-family: Syne, Arial, sans-serif; margin: 0 0 8px; color: var(--ink); }
+.modal-caixa h3 { margin: 12px 0 4px; font-size: 15px; }
+
+.login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--navy); }
+.login-caixa { background: #fff; border-radius: 16px; padding: 28px; width: min(440px, 100%); display: flex; flex-direction: column; gap: 10px; }
+.login-caixa h1 { font-family: Syne, Arial, sans-serif; font-size: 26px; margin: 8px 0 4px; color: var(--ink); }
+.login-caixa label { font-size: 13px; font-weight: 600; }
+.login-caixa input { height: 44px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 6px; font-size: 15px; }
+.login-caixa .msg { margin: 0; background: var(--gold-soft); border-radius: 6px; padding: 8px 10px; color: var(--ink); }
+.login-caixa .links { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.marca { display: flex; gap: 12px; align-items: center; }
+.marca-nome { font-family: Syne, Arial, sans-serif; font-weight: 700; font-size: 18px; color: var(--ink); }
+.marca-sub { font-size: 13px; color: var(--gold-ink); }
