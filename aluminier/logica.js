@@ -108,6 +108,8 @@ export class Logica extends DCLogic {
     let sKg = 0, sTot = 0, aberto = 0, abertoN = 0, semPreco = 0, semUsina = 0;
     s.sucata.forEach(r => { if (!r.pago && r.preco > 0) { const c0 = this.calcSucata(r); aberto += c0.total; abertoN++; } if (!this.noMes(r)) return; if (r.semPreco || !(r.preco > 0)) { semPreco++; return; } if (!r.usina) semUsina++; const c = this.calcSucata(r); sKg += c.liq; sTot += c.total; });
     let tKg = 0, tVal = 0, tKgAll = 0, tSemPreco = 0; s.tarugo.filter(r => this.noMes(r)).forEach(r => { tKgAll += r.kg; if (r.preco > 0) { tKg += r.kg; tVal += r.kg * r.preco; } else tSemPreco++; });
+    // tarugo que voltou da fundição lançado no sistema (depois da carga da planilha) também "chegou"
+    s.retornos.filter(r => this.noMes(r) && this.depoisDaCarga(r)).forEach(r => { tKgAll += r.kg; tSemPreco++; });
     const contas = this.usinas().map(u => this.conta(u));
     const saldo = contas.reduce((a, c) => a + c.saldo, 0);
     const saldos = contas;
@@ -223,7 +225,12 @@ export class Logica extends DCLogic {
           salvar: () => { const r = { id: this.nextId++, data: this.iso(f.data), usina: u, nfRet: (f.nfRet || '').trim(), nfRem: (f.nfRem || '').trim(), kg: this.num(f.kg) }; if (!(r.kg > 0)) return 'Preencha quantos kg de tarugo voltaram.'; return this.grava('retornos', r); },
           colunas: ['Data', 'Nota', 'Fornecedor', 'Sucata mandada', 'Vira tarugo (sem a perda)', 'Já voltou', 'Falta voltar', 'Situação'], dir: [0, 0, 0, 1, 1, 1, 1, 0],
           linhas: ct.grupos.map(g => { const falta = g.cred - g.voltou; const sit = g.voltou <= 0 ? 'Aguardando' : falta <= 0.5 ? 'Voltou tudo' : 'Parcial'; return { id: g.chave, lista: 'nf', semExcluir: true, cel: [this.dt(g.data), g.nf, g.forns.join(', '), g.sucata ? this.n0(g.sucata) : '', this.n0(g.cred), this.n0(g.voltou), this.n0(Math.max(0, falta)), sit] }; }),
-          resumo: 'Saldo de metal na ' + this.nomeUsina(u) + ': ' + this.n0(ct.saldo) + ' kg',
+          resumo: (() => {
+            // As duas contas são diferentes e a tela diz isso: a daqui (nota por nota, desde o que foi lançado) e a foto da planilha no começo do mês.
+            const vr = this.virada(s.mes), foto = vr && vr.lista.find(x => x.usina === u);
+            const ult = ct.grupos.concat(ct.rets).map(x => x.data || '').sort().pop();
+            return 'Pelas notas lançadas aqui' + (ult ? ' (até ' + this.dt(ult) + ')' : '') + ': ' + this.n0(ct.saldo) + ' kg' + (foto ? ' · A planilha mostrava ' + this.n0(foto.kg) + ' kg no começo de ' + this.mesLongo(vr.mes) + '. A diferença é o que ainda não foi lançado nota por nota.' : '');
+          })(),
           chips: this.usinas().map(x => ({ label: this.nomeUsina(x) + ' · ' + this.n0(this.conta(x).saldo) + ' kg', go: () => this.setState({ usinaSel: x, erro: '' }), style: 'height:44px;padding:0 14px;border-radius:999px;font-weight:600;font-size:14px;cursor:pointer;' + (x === u ? 'background:#f6ebd2;color:#111827;border:1px solid #9c7518' : 'background:#ffffff;color:#2a3540;border:1px solid #c9cfd8') })),
           ret: ct.rets.slice().reverse().map(r => ({ data: this.dt(r.data), nf: r.nfRet || '—', vinc: r.nfRem || 'remessa mais antiga', kg: this.n0(r.kg), editar: () => this.editar('retornos', r), rotulo: 'Abrir o retorno de ' + this.dt(r.data) + ', ' + this.n0(r.kg) + ' kg' })),
           nfs: ct.grupos.filter(g => g.chave.indexOf('nf:') === 0).map(g => g.nf)
@@ -234,7 +241,8 @@ export class Logica extends DCLogic {
         ajuda: 'Quanto a fábrica produziu e quanto você vendeu hoje (em quilos e em reais).',
         campos: [campo('data', 'Dia', { mode: 'text', ph: this.hoje() }), campo('produz', 'Produzido (kg)'), campo('kgfat', 'Faturado (kg)'), campo('fat', 'Faturado (R$)')],
         calc: () => { const pm = this.num(f.fat) / this.num(f.kgfat); return [{ label: 'Preço médio', valor: this.rs(pm) + '/kg' }, { label: 'Margem sobre o custo médio do metal', valor: this.rs(pm - T.custoMedio) + '/kg' }]; },
-        salvar: () => { const r = { id: this.nextId++, data: this.iso(f.data), produz: this.num(f.produz) || 0, kgfat: this.num(f.kgfat), fat: this.num(f.fat) }; if (!(r.kgfat > 0) || !(r.fat > 0)) return 'Preencha o faturado em kg e em R$.'; return this.grava('dias', r); },
+        // Dia em que só produziu (embalou e não faturou) também vale; venda precisa de kg e R$ juntos.
+        salvar: () => { const r = { id: this.nextId++, data: this.iso(f.data), produz: this.num(f.produz) || 0, kgfat: this.num(f.kgfat) || 0, fat: this.num(f.fat) || 0 }; if (!(r.produz > 0) && !(r.kgfat > 0) && !(r.fat > 0)) return 'Preencha o que produziu ou o que vendeu hoje.'; if ((r.kgfat > 0) !== (r.fat > 0)) return 'Na venda, preencha os quilos e o valor em reais.'; return this.grava('dias', r); },
         colunas: ['Dia', 'Produziu (kg)', 'Vendeu (kg)', 'Vendeu (R$)', 'Preço do quilo'], dir: [0, 1, 1, 1, 1],
         linhas: s.dias.filter(d => this.noMes(d)).map(d => ({ id: d.id, lista: 'dias', cel: [this.dt(d.data), this.n0(d.produz), d.kgfat ? this.n0(d.kgfat) : '—', d.fat ? this.rs(d.fat) : '—', d.kgfat ? this.rs(d.fat / d.kgfat) : '—'] })),
         resumo: this.n0(T.prod) + ' kg produzidos · ' + this.n0(T.fKg) + ' kg faturados · preço médio ' + this.rs(T.pm) + '/kg'
@@ -298,6 +306,8 @@ export class Logica extends DCLogic {
     };
   }
   venceu(r) { const m = /^(\d{1,2})[./](\d{1,2})/.exec(r.pagto || ''); if (!m) return false; const iso = (r.data || '').slice(0, 4) + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0'); return iso < new Date().toISOString().slice(0, 10); }
+  depoisDaCarga(r) { const ate = this.state.historicoAte; return !!ate && (r.data || '') > ate; }
+  precoSucataRef() { const ps = (this.state.cot || []).filter(c => c.tipo === 'sucata' && c.preco > 0).map(c => c.preco); return ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : NaN; }
   nomeUsina(u) { const f = (this.state.fundicoes || []).find(x => x.v === u); return f ? f.l : u; }
 
   // Soma por mês, com a mesma régua do Painel.
@@ -307,8 +317,16 @@ export class Logica extends DCLogic {
     const ok = d => /^\d{4}-\d{2}/.test(d || '');
     s.tarugo.forEach(r => { if (!ok(r.data)) return; const a = A(r.data.slice(0, 7)); a.kg += r.kg; if (r.preco > 0) { a.kgP += r.kg; a.val += r.kg * r.preco; const f = a.forn[r.forn] || (a.forn[r.forn] = { kg: 0, val: 0 }); f.kg += r.kg; f.val += r.kg * r.preco; } });
     s.sucata.forEach(r => { if (!ok(r.data) || !(r.preco > 0)) return; const c = this.calcSucata(r); const a = A(r.data.slice(0, 7)); a.sucLiq += c.liq; a.sucTot += c.total; });
-    s.dias.forEach(d => { if (!ok(d.data)) return; const a = A(d.data.slice(0, 7)); a.prod += d.produz; a.kgfat += d.kgfat; a.fat += d.fat; });
-    Object.keys(agg).forEach(ym => { const a = agg[ym]; a.custo = (a.kgP + a.sucLiq) ? (a.val + a.sucTot) / (a.kgP + a.sucLiq) : NaN; a.venda = a.kgfat ? a.fat / a.kgfat : NaN; a.sobra = a.venda - a.custo; a.cobertura = a.kg ? a.kgP / a.kg : NaN; });
+    s.retornos.forEach(r => { if (!ok(r.data) || !this.depoisDaCarga(r)) return; A(r.data.slice(0, 7)).kg += r.kg; });
+    s.dias.forEach(d => { if (!ok(d.data)) return; const a = A(d.data.slice(0, 7)); a.prod += d.produz; a.kgfat += d.kgfat; a.fat += d.fat; if (d.kgfat > 0) a.diasVenda = (a.diasVenda || 0) + 1; });
+    Object.keys(agg).forEach(ym => {
+      const a = agg[ym];
+      a.custo = (a.kgP + a.sucLiq) ? (a.val + a.sucTot) / (a.kgP + a.sucLiq) : NaN; a.venda = a.kgfat ? a.fat / a.kgfat : NaN;
+      a.cobertura = a.kg ? a.kgP / a.kg : NaN;
+      // A sobra só aparece quando a conta está completa: ≥ 90% do tarugo com preço e ≥ 15 dias de venda anotados.
+      a.completo = a.cobertura >= 0.9 && (a.diasVenda || 0) >= 15;
+      a.sobra = a.completo ? a.venda - a.custo : NaN;
+    });
     return agg;
   }
 
@@ -330,9 +348,8 @@ export class Logica extends DCLogic {
       const u = comFat[comFat.length - 1], a = agg[u], ant = comFat.length > 1 ? agg[comFat[comFat.length - 2]] : null;
       let frase = 'Em ' + this.mesLongo(u) + ' você vendeu o quilo por ' + this.rs(a.venda) + ' e pagou ' + this.rs(a.custo) + '.';
       if (ant) { const dv = a.venda - ant.venda, dc = a.custo - ant.custo; frase += ' Comparando com ' + this.mesLongo(comFat[comFat.length - 2]) + ': você vendeu ' + this.rs(Math.abs(dv)) + (dv >= 0 ? ' mais caro' : ' mais barato') + ' e pagou ' + this.rs(Math.abs(dc)) + (dc >= 0 ? ' a mais' : ' a menos') + '. Por isso sobrou ' + this.rs(Math.abs(dv - dc)) + (dv - dc >= 0 ? ' a mais' : ' a menos') + ' em cada quilo.'; }
-      if (a.cobertura < 0.9) frase += ' O tarugo que voltou da fundição ainda não tem preço, então essa conta é só uma parte.';
       card('Quanto sobrou em cada quilo?', this.rs(a.sobra), frase, isFinite(sobraMin) ? (a.sobra >= sobraMin ? 'ok' : 'at') : 'in', isFinite(sobraMin) ? (a.sobra >= sobraMin ? 'bom' : 'abaixo do seu mínimo') : this.rotMes(u));
-    } else card('Quanto sobrou em cada quilo?', '—', 'Nenhum mês deste período tem as vendas anotadas. Anote em Lançar › Produção e faturamento.', 'at', 'falta anotar');
+    } else card('Quanto sobrou em cada quilo?', '—', 'Neste período nenhum mês tem a conta completa: ou falta o custo do tarugo que voltou da fundição, ou faltam dias de venda anotados. Assim que o custo do tarugo da fundição entrar, este número aparece.', 'at', 'conta incompleta');
 
     // 2. De quem comprar: quanto paguei acima do mais barato de cada mês
     let excesso = 0, kgTot = 0; const fornPer = {};
@@ -345,15 +362,22 @@ export class Logica extends DCLogic {
     const mediaGeral = Object.keys(fornPer).reduce((x, k) => x + fornPer[k].val, 0) / (kgTot || 1);
     const fornecedores = Object.keys(fornPer).map(k => ({ k, kg: fornPer[k].kg, p: fornPer[k].val / fornPer[k].kg, meses: fornPer[k].meses })).sort((a, b) => b.kg - a.kg).slice(0, 10)
       .map(x => ({ nome: x.k, kg: this.n0(x.kg), part: this.pc(x.kg / (kgTot || 1)), preco: this.rs(x.p), dif: (x.p - mediaGeral >= 0 ? '+' : '−') + this.n2(Math.abs(x.p - mediaGeral)), meses: String(x.meses), difStyle: 'text-align:right;font-weight:600;color:' + (x.p > mediaGeral + 0.05 ? '#8a5406' : '#111827') }));
-    card('Quanto eu podia ter economizado comprando do mais barato?', this.rs(excesso), 'Se em cada mês você tivesse comprado todo o tarugo pronto do fornecedor mais barato daquele mês, teria pago essa quantia a menos. É o máximo: não conta prazo, frete nem qualidade.', excesso > 0 ? 'at' : 'ok', meses.length + ' meses');
+    // Diferença por quilo entre o mais caro e o mais barato (sem somar um total em R$, que misturaria produtos e prazos diferentes)
+    const relevantes = Object.keys(fornPer).filter(k => fornPer[k].kg >= 0.05 * (kgTot || 1)).map(k => ({ k, p: fornPer[k].val / fornPer[k].kg })).sort((a, b) => a.p - b.p);
+    if (relevantes.length > 1) {
+      const bar = relevantes[0], car = relevantes[relevantes.length - 1];
+      card('Quem cobrou mais caro pelo tarugo pronto?', this.rs(car.p - bar.p) + ' por quilo', 'No período, ' + car.k + ' cobrou em média ' + this.rs(car.p) + ' e ' + bar.k + ' ' + this.rs(bar.p) + ' o quilo. Prazo de pagamento, frete e qualidade não entram nessa conta.', car.p - bar.p > 0.5 ? 'at' : 'in', meses.length + ' meses');
+    } else card('Quem cobrou mais caro pelo tarugo pronto?', '—', 'Precisa de pelo menos dois fornecedores de tarugo pronto no período para comparar.', 'in', 'sem comparação');
 
     // 3. Metal parado
     const vr = this.virada(s.mes);
     const parado = vr ? vr.lista.reduce((x, u) => x + u.kg, 0) : 0;
     const ult = agg[s.mes] || agg[fim] || {}, custoRef = isFinite(ult.custo) ? ult.custo : this.totais().custoMedio;
-    const custoParado = isFinite(taxa) ? parado * custoRef * taxa / 100 : NaN;
-    card('Quanta sucata minha está parada nas fundições?', this.n0(parado) + ' kg', (vr ? 'É o que a planilha mostrava no começo de ' + this.mesLongo(vr.mes) + '. ' : 'A planilha não tem esse número para este mês. ') + (isFinite(custoRef) && parado ? 'É dinheiro seu parado: cerca de ' + this.rs(parado * custoRef) + '. ' : '') + (isFinite(custoParado) ? 'Se esse dinheiro estivesse rendendo ' + this.n2(taxa) + '% ao mês, daria ' + this.rs(custoParado) + ' por mês.' : ''), 'in', vr ? vr.lista.length + ' fundições' : 'sem dado');
-    const usinas = vr ? vr.lista.map(u => ({ nome: this.nomeUsina(u.usina), saldo: this.n0(u.kg) + ' kg', abertas: isFinite(custoRef) ? this.rs(u.kg * custoRef) : '—' })) : [];
+    // sucata parada vale pelo preço da SUCATA (média das cotações), não pelo do tarugo
+    const pSuc = this.precoSucataRef();
+    const custoParado = isFinite(taxa) && isFinite(pSuc) ? parado * pSuc * taxa / 100 : NaN;
+    card('Quanta sucata minha está parada nas fundições?', this.n0(parado) + ' kg', (vr ? 'É o que a planilha mostrava no começo de ' + this.mesLongo(vr.mes) + '. ' : 'A planilha não tem esse número para este mês. ') + (isFinite(pSuc) && parado ? 'Pelo preço médio da sucata nas suas cotações (' + this.rs(pSuc) + ' o quilo), é perto de ' + this.rs(parado * pSuc) + ' parados (estimativa). ' : '') + (isFinite(custoParado) ? 'Se esse dinheiro estivesse rendendo ' + this.n2(taxa) + '% ao mês, daria ' + this.rs(custoParado) + ' por mês.' : ''), 'in', vr ? vr.lista.length + ' fundições' : 'sem dado');
+    const usinas = vr ? vr.lista.map(u => ({ nome: this.nomeUsina(u.usina), saldo: this.n0(u.kg) + ' kg', abertas: isFinite(pSuc) ? '≈ ' + this.rs(u.kg * pSuc) : '—' })) : [];
 
     // 4. Quanto do número eu enxergo
     const kgM = meses.reduce((x, m) => x + agg[m].kg, 0), kgPM = meses.reduce((x, m) => x + agg[m].kgP, 0);
@@ -364,7 +388,7 @@ export class Logica extends DCLogic {
     // 5. Mercado e preço teto
     const lme = this.num(s.par.lme), dol = this.num(s.par.dolar), cart = this.num(s.par.carteiraPreco);
     const lmeR = isFinite(lme) && isFinite(dol) ? lme * dol / 1000 : NaN;
-    let f5 = isFinite(lmeR) ? 'O alumínio na bolsa de Londres (LME) estava a ' + this.rs(lmeR) + ' o quilo. Você pagou ' + this.rs(custoRef) + ', ou seja, ' + this.rs(custoRef - lmeR) + ' acima da bolsa. ' : 'Anote em Preços o valor da LME e do dólar do mês passado para comparar. ';
+    let f5 = isFinite(lmeR) ? 'O alumínio na bolsa de Londres (LME) estava a ' + this.rs(lmeR) + ' o quilo. No tarugo pronto você pagou ' + this.rs(custoRef) + ', ou seja, ' + this.rs(custoRef - lmeR) + ' acima da bolsa. ' : 'Anote em Preços o valor da LME e do dólar do mês passado para comparar. ';
     if (isFinite(cart) && isFinite(sobraMin)) f5 += 'Para vender a ' + this.rs(cart) + ' e ainda sobrar ' + this.rs(sobraMin) + ' por quilo, não pague mais de ' + this.rs(cart - sobraMin) + ' no quilo.';
     else f5 += 'Se você anotar em Preços quanto quer que sobre por quilo, o sistema diz o preço máximo para pagar.';
     card('Estou pagando caro?', isFinite(cart) && isFinite(sobraMin) ? 'pague até ' + this.rs(cart - sobraMin) : (isFinite(lmeR) ? this.rs(custoRef - lmeR) + ' acima da bolsa' : '—'), f5, 'in', 'mercado');
@@ -403,8 +427,10 @@ export class Logica extends DCLogic {
     const nec = this.num(s.par.necessidade) || 0;
     const entrou = T.tKgAll;
     const cobre = nec ? entrou / nec : NaN;
-    const margem = T.pm - T.custoMedio;
     const cobertura = T.tKgAll ? T.tKg / T.tKgAll : NaN;
+    const parcial = !(cobertura >= 0.9); // mais de 10% do tarugo do mês sem preço: a sobra não aparece (o próprio sistema não acreditaria nela)
+    const margemBruta = T.pm - T.custoMedio;
+    const margem = parcial ? NaN : margemBruta;
     const sobraMin = this.num(s.par.sobraMin), maxParado = this.num(s.par.maxParado);
     // Linguagem do dono: frases curtas, sem termos técnicos. Selo sempre com uma palavra.
     const mesNome = this.mesLongo(s.mes);
@@ -412,8 +438,8 @@ export class Logica extends DCLogic {
     const sucataFundicoes = vrK ? vrK.lista.reduce((x, u) => x + u.kg, 0) : T.saldo;
     const kpis = [
       Object.assign({ label: 'Vendi o quilo por', valor: this.rs(T.pm), nota: T.fKg ? this.n0(T.fKg) + ' kg vendidos no mês' : 'as vendas deste mês não foram anotadas' }, T.fKg ? this.selo('in', 'média do mês') : this.selo('at', 'falta anotar')),
-      Object.assign({ label: 'Paguei o quilo do tarugo', valor: this.rs(T.custoMedio), nota: cobertura < 0.9 ? 'só do tarugo que tem preço; o que voltou da fundição ainda não tem' : 'média do mês' }, cobertura < 0.9 ? this.selo('at', 'conta parcial') : this.selo('in', 'média do mês')),
-      Object.assign({ label: 'Sobrou em cada quilo', valor: this.rs(margem), nota: 'venda menos o que paguei pelo metal' }, !isFinite(margem) ? this.selo('in', 'falta anotar') : margem < 0 ? this.selo('ri', 'prejuízo') : isFinite(sobraMin) ? this.selo(margem >= sobraMin ? 'ok' : 'at', margem >= sobraMin ? 'bom' : 'abaixo do seu mínimo') : this.selo('ok', 'positivo')),
+      Object.assign({ label: parcial ? 'Paguei o quilo do tarugo pronto' : 'Paguei o quilo do tarugo', valor: this.rs(T.custoMedio), nota: parcial ? (isFinite(cobertura) ? this.pc(cobertura) + ' do tarugo que chegou; o resto voltou da fundição e ainda não tem custo' : 'nenhum tarugo com preço neste mês') : 'média do mês' }, parcial ? this.selo('at', 'só o pronto') : this.selo('in', 'média do mês')),
+      Object.assign({ label: 'Sobrou em cada quilo', valor: parcial && T.fKg ? 'falta o custo' : this.rs(margem), nota: parcial && T.fKg ? 'falta o custo do tarugo que voltou da fundição' : 'venda menos o que paguei pelo metal' }, parcial && T.fKg ? this.selo('in', 'conta incompleta') : !isFinite(margem) ? this.selo('in', 'falta anotar') : margem < 0 ? this.selo('ri', 'prejuízo') : isFinite(sobraMin) ? this.selo(margem >= sobraMin ? 'ok' : 'at', margem >= sobraMin ? 'bom' : 'abaixo do seu mínimo') : this.selo('in', 'por quilo')),
       Object.assign({ label: 'Tarugo que chegou no mês', valor: this.n0(entrou) + ' kg', nota: nec ? (entrou >= nec ? 'precisava de ' + this.n0(nec) + ' kg: já chegou tudo' : 'precisava de ' + this.n0(nec) + ' kg: faltam ' + this.n0(nec - entrou) + ' kg') : 'a necessidade do mês não foi anotada' }, nec ? this.selo(cobre >= 1 ? 'ok' : cobre >= 0.7 ? 'at' : 'ri', cobre >= 1 ? 'completo' : 'falta comprar') : this.selo('in', 'sem meta')),
       Object.assign({ label: 'Minha sucata nas fundições', valor: this.n0(sucataFundicoes) + ' kg', nota: vrK ? 'em ' + vrK.lista.length + ' fundições, no começo de ' + this.mesLongo(vrK.mes) : 'pela conta da fundição' }, isFinite(maxParado) && vrK && vrK.lista.some(u => u.kg > maxParado) ? this.selo('at', 'muito parado') : this.selo('in', 'ver Análises'))
     ];
@@ -423,7 +449,9 @@ export class Logica extends DCLogic {
     const max = rk.length ? rk[rk.length - 1].v : 1, min = rk.length ? rk[0].v : 0;
     const ranking = rk.map((x, i) => ({ forn: x.c.forn, tipo: x.c.tipo === 'sucata' ? 'sucata com ' + this.pc(x.c.perda) + ' de perda' : 'tarugo pronto', custo: this.rs(x.v), barStyle: 'height:100%;border-radius:999px;width:' + Math.max(8, Math.round(100 * (x.v - min * 0.9) / (max - min * 0.9))) + '%;background:' + (i === 0 ? '#9c7518' : '#2a3540') }));
     const p = {
-      manchete: isFinite(margem) ? 'Em ' + mesNome + ' você vendeu o quilo por ' + this.rs(T.pm) + ' e pagou ' + this.rs(T.custoMedio) + '. Sobraram ' + this.rs(margem) + ' em cada quilo.' : 'Em ' + mesNome + ' as vendas ainda não foram anotadas. Anote em Lançar › Produção e faturamento para ver quanto sobrou.',
+      manchete: !T.fKg ? 'Em ' + mesNome + ' as vendas ainda não foram anotadas. Anote em Lançar › Produção e faturamento para ver quanto sobrou.'
+        : parcial ? 'Em ' + mesNome + ' você vendeu o quilo por ' + this.rs(T.pm) + '. Quanto sobrou ainda não dá para dizer: falta o custo do tarugo que voltou da fundição.'
+        : 'Em ' + mesNome + ' você vendeu o quilo por ' + this.rs(T.pm) + ' e pagou ' + this.rs(T.custoMedio) + '. Sobraram ' + this.rs(margem) + ' em cada quilo.',
       leituraRanking: rk.length > 1 ? 'Preços anotados na planilha de ' + (rk[0].c.origem ? this.mesLongo(rk[0].c.origem.slice(-7)) : 'compras') + '. Se a perda for maior do que a combinada, a sucata sai mais cara do que aparece aqui.' : ''
     };
     const alertas = [];
@@ -445,7 +473,7 @@ export class Logica extends DCLogic {
     if (isFinite(margem) && isFinite(sobraMin) && margem < sobraMin) alertas.push(Object.assign({ texto: 'Sobraram ' + this.rs(margem) + ' por quilo, menos que os ' + this.rs(sobraMin) + ' que você marcou como mínimo.' }, this.selo('ri', 'Sobra baixa')));
     if (!alertas.length) alertas.push(Object.assign({ texto: 'Nada pendente.' }, this.selo('ok', 'Tudo certo')));
 
-    const diasTab = s.dias.filter(d => this.noMes(d)).reverse().map(d => { const pm = d.kgfat ? d.fat / d.kgfat : NaN, m = pm - T.custoMedio; return { data: this.dt(d.data), produz: this.n0(d.produz), kgfat: d.kgfat ? this.n0(d.kgfat) : '—', fat: d.fat ? this.rs(d.fat) : '—', pm: this.rs(pm), margem: this.rs(m), ganho: d.kgfat ? this.rs(m * d.kgfat) : '—', margemStyle: 'text-align:right;font-weight:600;color:' + (!isFinite(m) ? '#5d6871' : m < 0 ? '#b3382c' : isFinite(sobraMin) && m < sobraMin ? '#8a5406' : '#111827') }; });
+    const diasTab = s.dias.filter(d => this.noMes(d)).reverse().map(d => { const pm = d.kgfat ? d.fat / d.kgfat : NaN, m = parcial ? NaN : pm - T.custoMedio; return { data: this.dt(d.data), produz: this.n0(d.produz), kgfat: d.kgfat ? this.n0(d.kgfat) : '—', fat: d.fat ? this.rs(d.fat) : '—', pm: this.rs(pm), margem: this.rs(m), ganho: d.kgfat ? this.rs(m * d.kgfat) : '—', margemStyle: 'text-align:right;font-weight:600;color:' + (!isFinite(m) ? '#5d6871' : m < 0 ? '#b3382c' : isFinite(sobraMin) && m < sobraMin ? '#8a5406' : '#111827') }; });
 
     const formTabs = ['sucata', 'tarugo', 'usina', 'dia', 'precos'];
     const tela = this.telas();
@@ -460,7 +488,7 @@ export class Logica extends DCLogic {
     const mesAMes = Object.keys(agg).sort().reverse().map(ym => {
       const a = agg[ym];
       return { label: this.rotMes(ym), abrir: abrirMes(ym), style: ym === s.mes ? 'background:#f6ebd2' : '',
-        kg: this.n0(a.kg), compra: this.rs(a.custo), prod: a.prod ? this.n0(a.prod) : '—', kgfat: a.kgfat ? this.n0(a.kgfat) : 'não lançado', venda: this.rs(a.venda), margem: this.rs(a.sobra), ganho: isFinite(a.sobra) ? this.rs(a.sobra * a.kgfat) : '—', semPreco: isFinite(a.cobertura) ? this.pc(a.cobertura) : '—',
+        kg: this.n0(a.kg), compra: this.rs(a.custo), prod: a.prod ? this.n0(a.prod) : '—', kgfat: a.kgfat ? this.n0(a.kgfat) : 'não lançado', venda: this.rs(a.venda), margem: isFinite(a.sobra) ? this.rs(a.sobra) : (a.kgfat ? 'incompleto' : '—'), ganho: isFinite(a.sobra) ? this.rs(a.sobra * a.kgfat) : '—', semPreco: isFinite(a.cobertura) ? this.pc(a.cobertura) : '—',
         margemStyle: 'text-align:right;font-weight:600;color:' + (!isFinite(a.sobra) ? '#5d6871' : a.sobra < 0 ? '#b3382c' : isFinite(sobraMin) && a.sobra < sobraMin ? '#8a5406' : '#111827') };
     });
     const an = s.tab === 'analises' ? this.analises(agg, abrirMes) : null;

@@ -2,7 +2,7 @@
 import { html } from './vendor/preact-htm.js';
 export function desenhar(v) {
   const { fonte, mesAMes, mesSel, an, tabs, is, msg, kpis, ranking, alertas, diasTab, p, tela, listas, parCampos, sug, balao } = v;
-  return html`<div style="min-height: 100vh; background: #f6f6f3; color: #2a3540; font-family: 'DM Sans', 'Segoe UI', Roboto, sans-serif; font-size: 15px; line-height: 23px;">
+  return html`<div class="raiz" style="background: #f6f6f3; color: #2a3540; font-family: 'DM Sans', 'Segoe UI', Roboto, sans-serif; font-size: 15px; line-height: 23px;">
 
 <header style="background: #0d1117; color: #ffffff; padding: 20px 28px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;">
 <div style="display: flex; align-items: center; gap: 14px;">
@@ -15,7 +15,7 @@ export function desenhar(v) {
 <div style="font-size: 13px; color: #cbd2dc;" class="num">${fonte}</div>
 </header>
 
-<nav aria-label="Menu" style="background: #ffffff; border-bottom: 1px solid #e4e6e2; padding: 10px 28px; display: flex; gap: 8px; overflow-x: auto;">
+<nav aria-label="Menu" style="background: #ffffff; border-bottom: 1px solid #e4e6e2; padding: 10px 28px; display: flex; flex-wrap: wrap; gap: 8px;">
 ${(tabs || []).map((t, $index) => html`
 <button type="button" onClick=${t.go} style=${t.style}>${t.label}</button>
 `)}
@@ -34,7 +34,7 @@ ${(mesSel.opcoes || []).map((o, $index) => html`<option value=${o.v}>${o.l}</opt
 <main style="padding: 28px; display: flex; flex-direction: column; gap: 20px;">
 
 ${msg.show ? html`
-<div role="status" style="background: #e3f1e8; color: #1f7a4a; border-radius: 6px; padding: 10px 14px; font-weight: 600; font-size: 14px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;"><span>${msg.text}</span>${msg.temDesfazer ? html`<button type="button" onClick=${msg.desfazer} style="height: 36px; padding: 0 14px; border: 1px solid #1f7a4a; border-radius: 6px; background: #ffffff; color: #1f7a4a; font-weight: 600; cursor: pointer;">Desfazer</button>` : null}</div>
+<div role="status" style="background: #e3f1e8; color: #1f7a4a; border-radius: 6px; padding: 10px 14px; font-weight: 600; font-size: 14px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;"><span>${msg.text}</span>${msg.temDesfazer ? html`<button type="button" onClick=${msg.desfazer} style="height: 44px; padding: 0 14px; border: 1px solid #1f7a4a; border-radius: 6px; background: #ffffff; color: #1f7a4a; font-weight: 600; cursor: pointer;">Desfazer</button>` : null}</div>
 ` : null}
 
 
@@ -342,16 +342,6 @@ ${is.sugestoes ? html`
 <textarea id="sug-texto" rows="3" value=${sug.texto} onInput=${sug.onTexto} style="padding: 10px 12px; border: 1px solid #c9cfd8; border-radius: 6px; color: #111827; resize: vertical;"></textarea>
 <div><button type="submit" style="height: 44px; padding: 0 22px; border: 0; border-radius: 6px; background: #0d1117; color: #ffffff; font-weight: 600; cursor: pointer;">Enviar sugestão</button></div>
 </form>
-<div style="background: #ffffff; border: 1px solid #e4e6e2; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 10px;">
-<h2 style="font-family: Syne, Arial, sans-serif; font-size: 17px; margin: 0;">Suas sugestões e o retorno</h2>
-${(sug.lista || []).map((s, $index) => html`
-<div style="border-top: 1px solid #e4e6e2; padding-top: 10px; display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline;">
-<span style="background: #e3ecf5; color: #2f5d8a; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 600;">${s.status}</span>
-<strong style="font-size: 14px; color: #111827;">${s.tipo}</strong>
-<span style="font-size: 14px;">${s.texto}</span>
-</div>
-`)}
-</div>
 </section>
 ` : null}
 
@@ -363,7 +353,7 @@ ${balao.aberto ? html`
 <strong style="color: #111827;">Travou em algo nesta tela?</strong>
 <label for="balao-texto" style="font-size: 13px; color: #5d6871;">Conte em uma frase. Vai para a fila de Sugestões.</label>
 <textarea id="balao-texto" rows="3" value=${balao.texto} onInput=${balao.onTexto} style="padding: 8px 10px; border: 1px solid #c9cfd8; border-radius: 6px; resize: vertical;"></textarea>
-<div style="display: flex; gap: 8px;"><button type="button" onClick=${balao.enviar} style="height: 40px; padding: 0 14px; border: 0; border-radius: 6px; background: #0d1117; color: #ffffff; font-weight: 600; cursor: pointer;">Enviar</button><button type="button" onClick=${balao.urgente} style="height: 40px; padding: 0 12px; border: 1px solid #c9cfd8; border-radius: 6px; background: #ffffff; color: #b3382c; font-weight: 600; cursor: pointer;">Urgente: impede o uso</button></div>
+<div style="display: flex; gap: 8px;"><button type="button" onClick=${balao.enviar} style="height: 44px; padding: 0 14px; border: 0; border-radius: 6px; background: #0d1117; color: #ffffff; font-weight: 600; cursor: pointer;">Enviar</button><button type="button" onClick=${balao.urgente} style="height: 44px; padding: 0 12px; border: 1px solid #c9cfd8; border-radius: 6px; background: #ffffff; color: #b3382c; font-weight: 600; cursor: pointer;">Urgente: impede o uso</button></div>
 </div>
 ` : null}
 <button type="button" onClick=${balao.toggle} aria-label="Abrir o balão de dúvida" style="height: 52px; padding: 0 18px; border: 0; border-radius: 999px; background: #0d1117; color: #ffffff; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 12px 32px -8px rgba(17,24,39,.35);">
