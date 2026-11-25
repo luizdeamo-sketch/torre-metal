@@ -1,21 +1,21 @@
 // Torre de Controle - Aluminier · liga as contas (logica.js) e as telas (tela.js) ao banco da Aluminier.
 import { html, render } from './vendor/preact-htm.js';
-import { Logica } from './logica.js?v=20261121165031';
-import { desenhar } from './tela.js?v=20261121165031';
-import { SUPABASE_URL, SUPABASE_CHAVE, STORAGE_KEY, EMPRESA } from './config.js?v=20261121165031';
-import { NOVIDADES } from './novidades.js?v=20261121165031';
+import { Logica } from './logica.js?v=20261125174846';
+import { desenhar } from './tela.js?v=20261125174846';
+import { SUPABASE_URL, SUPABASE_CHAVE, STORAGE_KEY, EMPRESA } from './config.js?v=20261125174846';
+import { NOVIDADES } from './novidades.js?v=20261125174846';
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_CHAVE, { auth: { storageKey: STORAGE_KEY, persistSession: true, autoRefreshToken: true } });
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* sem armazenamento: segue sem lembrar */ } };
 
-// ---------- Versão publicada (o publicar.ps1 troca 20261121165031 pela data e hora) ----------
+// ---------- Versão publicada (o publicar.ps1 troca 20261125174846 pela data e hora) ----------
 const VERSAO = (new URL(import.meta.url).searchParams.get('v') || '');
 const versaoDoHtml = (txt) => { const m = String(txt).match(/app\.js\?v=(\d{10,})/); return m ? m[1] : ''; };
 
 // ---------- Banco ⇄ tela ----------
 const n = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
-const TABELA = { tarugo: 'tarugo', sucata: 'sucata', retornos: 'retornos', dias: 'dias', cot: 'cotacoes' };
+const TABELA = { tarugo: 'alu_tarugo', sucata: 'alu_sucata', retornos: 'alu_retornos', dias: 'alu_dias', cot: 'alu_cotacoes' };
 const doBanco = {
   tarugo: (r) => ({ id: r.id, data: r.data, forn: r.forn, kg: n(r.kg), preco: n(r.preco), so_mo: n(r.so_mo), origem: r.origem }),
   sucata: (r) => ({ id: r.id, data: r.data, forn: r.forn, peso: n(r.peso), perda: n(r.perda) || 0, preco: r.preco == null ? NaN : n(r.preco), usina: r.usina || '', nf: r.nf || '', mo: r.mo == null ? NaN : n(r.mo), pagto: r.pagto || '', pago: !!r.pago, semPreco: !!r.sem_preco }),
@@ -43,7 +43,7 @@ async function lerTudo(tabela, filtroExcluido = true) {
   }
 }
 const STATUS = { recebida: 'Recebida', em_analise: 'Em análise', feita: 'Feita', nao_vamos_fazer: 'Não vamos fazer' };
-const PAPEIS = [['admin', 'Administrador'], ['operador', 'Lança e vê'], ['leitura', 'Só vê'], ['pendente', 'Aguardando liberação'], ['bloqueado', 'Bloqueado']];
+const PAPEIS = [['admin', 'Administrador'], ['operador', 'Lança e vê'], ['leitura', 'Só vê']];
 
 class App extends Logica {
   constructor(props) {
@@ -77,9 +77,11 @@ class App extends Logica {
     this._uid = uid;
     this.setState({ sessao, perfil: null, verificando: false });
     if (!sessao) { this.setState({ carregando: false }); return; }
-    const { data: perfil, error } = await sb.from('perfis').select('*').eq('user_id', sessao.user.id).maybeSingle();
+    // Quem entra é quem está na lista alu_membros (ativo). Fora da lista: tela "este e-mail não está liberado".
+    const { data: membro, error } = await sb.from('alu_membros').select('*').eq('email', String(sessao.user.email || '').toLowerCase()).maybeSingle();
     if (error) { this.setState({ perfil: { papel: 'erro' }, falhaCarga: 'Não consegui conferir o seu acesso (' + error.message + '). Confira a internet e tente de novo.', carregando: false }); return; }
-    if (forcar && perfil && !['admin', 'operador', 'leitura'].includes(perfil.papel)) this.aviso('Ainda não liberaram o seu acesso. Tente daqui a pouco.');
+    const perfil = membro && membro.ativo ? membro : { papel: 'fora' };
+    if (forcar && perfil.papel === 'fora') this.aviso('Este e-mail ainda não está liberado. Fale com o Luiz.');
     this.setState({ perfil });
     if (perfil && ['admin', 'operador', 'leitura'].includes(perfil.papel)) await this.carregar();
     else this.setState({ carregando: false });
@@ -90,9 +92,9 @@ class App extends Logica {
     this.setState({ carregando: true, falhaCarga: '' });
     try {
       const [tarugo, dias, sucata, retornos, cot, meses, parametros] = await Promise.all([
-        lerTudo('tarugo'), lerTudo('dias'), lerTudo('sucata'), lerTudo('retornos'), lerTudo('cotacoes'),
-        sb.from('meses').select('*').then((r) => { if (r.error) throw r.error; return r.data; }),
-        sb.from('parametros').select('*').then((r) => { if (r.error) throw r.error; return r.data; })
+        lerTudo('alu_tarugo'), lerTudo('alu_dias'), lerTudo('alu_sucata'), lerTudo('alu_retornos'), lerTudo('alu_cotacoes'),
+        sb.from('alu_meses').select('*').then((r) => { if (r.error) throw r.error; return r.data; }),
+        sb.from('alu_parametros').select('*').then((r) => { if (r.error) throw r.error; return r.data; })
       ]);
       const st = {
         tarugo: tarugo.map(doBanco.tarugo), dias: dias.map(doBanco.dias), sucata: sucata.map(doBanco.sucata),
@@ -150,7 +152,7 @@ class App extends Logica {
       res = await sb.from(tabela).insert(linha).select().single();
       if (!res.error && lista === 'cot') {
         const velhas = this.state.cot.filter((x) => x.forn === r.forn && x.tipo === r.tipo && Math.abs((x.perda || 0) - (r.perda || 0)) < 1e-6).map((x) => x.id);
-        if (velhas.length) { const v = await sb.from('cotacoes').update({ excluido_em: new Date().toISOString() }).in('id', velhas); if (v.error) this.aviso('A cotação nova foi salva, mas a antiga continua na lista: ' + v.error.message); }
+        if (velhas.length) { const v = await sb.from('alu_cotacoes').update({ excluido_em: new Date().toISOString() }).in('id', velhas); if (v.error) this.aviso('A cotação nova foi salva, mas a antiga continua na lista: ' + v.error.message); }
       }
     }
     if (res.error) { this.falhou('Não salvou: ' + res.error.message); return; }
@@ -221,9 +223,9 @@ class App extends Logica {
         { chave: 'max_parado', valor: num(s.par.maxParado) }, { chave: 'taxa', valor: num(s.par.taxa) },
         { chave: 'saldo_inicial', valor: Object.fromEntries(Object.entries(s.ini).map(([k, v]) => [k, num(v) || 0])) }
       ];
-      const r1 = await sb.from('parametros').upsert(params);
+      const r1 = await sb.from('alu_parametros').upsert(params);
       const m = s.meses[s.mes] || {};
-      const r2 = await sb.from('meses').upsert({ mes: s.mes, necessidade: num(s.par.necessidade), carteira_kg: num(s.par.carteiraKg), carteira_preco: num(s.par.carteiraPreco), lme: num(s.par.lme), dolar: num(s.par.dolar), saldos: m.saldos || {}, previsao: m.previsao || [] });
+      const r2 = await sb.from('alu_meses').upsert({ mes: s.mes, necessidade: num(s.par.necessidade), carteira_kg: num(s.par.carteiraKg), carteira_preco: num(s.par.carteiraPreco), lme: num(s.par.lme), dolar: num(s.par.dolar), saldos: m.saldos || {}, previsao: m.previsao || [] });
       if (r1.error || r2.error) { this.falhou('Não salvou as metas: ' + (r1.error || r2.error).message); return; }
       this.setState((st) => ({ meses: Object.assign({}, st.meses, { [s.mes]: Object.assign({}, m, { mes: s.mes, necessidade: num(s.par.necessidade), carteiraKg: num(s.par.carteiraKg), carteiraPreco: num(s.par.carteiraPreco), lme: num(s.par.lme), dolar: num(s.par.dolar) }) }) }));
       this.aviso('Metas e preços salvos.');
@@ -232,7 +234,7 @@ class App extends Logica {
 
   // ---------- sugestões e balão ----------
   async carregarSugestoes() {
-    const { data } = await sb.from('sugestoes').select('*').order('criado_em', { ascending: false }).limit(200);
+    const { data } = await sb.from('alu_sugestoes').select('*').order('criado_em', { ascending: false }).limit(200);
     this.setState({ sugs: (data || []).map((x) => ({ id: x.id, tipo: x.tipo, texto: x.texto, status: STATUS[x.status] || x.status, statusCod: x.status, resposta: x.resposta || '', email: x.email || '', tela: x.tela || '', quando: (x.criado_em || '').slice(0, 10) })) });
   }
   async novaSugestao(tipo, texto, tela) {
@@ -240,7 +242,7 @@ class App extends Logica {
     if (this._enviando) return false; // clique duplo não manda duas vezes
     this._enviando = true;
     try {
-      const { error } = await sb.from('sugestoes').insert({ tipo, texto: t, tela }); // autor e e-mail o banco preenche
+      const { error } = await sb.from('alu_sugestoes').insert({ tipo, texto: t, tela }); // autor e e-mail o banco preenche
       if (error) { this.falhou('Não enviou: ' + error.message); this.aviso('Não enviou: ' + error.message); return false; }
       await this.carregarSugestoes();
       return true;
@@ -254,7 +256,7 @@ class App extends Logica {
     const r = this.state.respostas[id] || {}, atual = this.state.sugs.find((x) => x.id === id) || {};
     const status = r.status || (atual.statusCod === 'recebida' ? 'em_analise' : atual.statusCod);
     const resposta = r.texto !== undefined ? (r.texto.trim() || null) : (atual.resposta || null);
-    const { error } = await sb.from('sugestoes').update({ status, resposta, respondido_em: new Date().toISOString() }).eq('id', id);
+    const { error } = await sb.from('alu_sugestoes').update({ status, resposta, respondido_em: new Date().toISOString() }).eq('id', id);
     if (error) { this.aviso('Não salvou a resposta: ' + error.message); return; }
     this.setState((s) => { const rs = Object.assign({}, s.respostas); delete rs[id]; return { respostas: rs }; });
     await this.carregarSugestoes(); this.aviso('Resposta salva. Quem sugeriu vê em Sugestões.');
@@ -262,14 +264,25 @@ class App extends Logica {
 
   // ---------- usuários (só admin) ----------
   async carregarUsuarios() {
-    const { data } = await sb.from('perfis').select('*').order('criado_em');
+    const { data } = await sb.from('alu_membros').select('*').order('criado_em');
     this.setState({ usuarios: data || [] });
   }
-  async mudarPapel(uid, papel) {
-    if (uid === this.state.sessao.user.id && papel !== 'admin') { this.aviso('Você não pode tirar o seu próprio acesso de administrador.'); return; }
-    const { error } = await sb.from('perfis').update({ papel }).eq('user_id', uid);
-    if (error) { this.aviso('Não mudou: ' + error.message); return; }
+  async mudarMembro(email, mudanca) {
+    const meu = String(this.state.sessao.user.email || '').toLowerCase();
+    if (email === meu && (mudanca.papel && mudanca.papel !== 'admin' || mudanca.ativo === false)) { this.aviso('Você não pode tirar o seu próprio acesso de administrador.'); return; }
+    const { data, error } = await sb.from('alu_membros').update(mudanca).eq('email', email).select('email');
+    if (error || !data || !data.length) { this.aviso('Não mudou' + (error ? ': ' + error.message : '.')); await this.carregarUsuarios(); return; }
     await this.carregarUsuarios(); this.aviso('Acesso atualizado.');
+  }
+  // Liberar alguém: só a partir daqui o e-mail consegue criar o acesso na tela de entrada (30 dias para o primeiro acesso).
+  async liberarEmail(e) {
+    e.preventDefault();
+    const n = this.state.novoMembro || {}, email = String(n.email || '').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { this.aviso('Escreva um e-mail válido.'); return; }
+    const { error } = await sb.from('alu_membros').insert({ email, nome: (n.nome || '').trim() || null, papel: n.papel || 'operador' });
+    if (error) { this.aviso('Não liberou: ' + (/duplicate/i.test(error.message) ? 'esse e-mail já está na lista.' : error.message)); return; }
+    this.setState({ novoMembro: {} });
+    await this.carregarUsuarios(); this.aviso(email + ' liberado. Mande o link e peça para clicar em "Criar acesso".');
   }
   async importarArquivo(ev) {
     const arq = ev.target.files && ev.target.files[0]; if (!arq) return;
@@ -278,7 +291,7 @@ class App extends Logica {
       let txt = await arq.text();
       txt = txt.replace(/^[\s\S]*?window\.\w+\s*=\s*/, '').replace(/;\s*$/, ''); // aceita o .json ou o historico.js do protótipo
       const dados = JSON.parse(txt);
-      const { data, error } = await sb.rpc('importar_historico', { dados });
+      const { data, error } = await sb.rpc('alu_importar_historico', { dados });
       if (error) throw error;
       this.aviso('Histórico carregado: ' + data.tarugo + ' entradas de tarugo, ' + data.dias + ' dias, ' + data.sucata + ' compras de sucata.');
       await this.carregar();
@@ -378,13 +391,24 @@ class App extends Logica {
     return html`<section style="padding: 0 28px 28px; display: flex; flex-direction: column; gap: 20px;">
       <div class="cartao">
         <h2 class="h2">Quem acessa o sistema</h2>
-        <p class="ajuda">Quem cria o acesso na tela de entrada aparece aqui como "Aguardando liberação". Escolha o que cada pessoa pode fazer.</p>
-        <div style="overflow-x: auto;"><table><thead><tr><th>E-mail</th><th>Desde</th><th>Acesso</th></tr></thead><tbody>
-        ${s.usuarios.map((u) => html`<tr><td>${u.email}</td><td>${(u.criado_em || '').slice(0, 10).split('-').reverse().join('/')}</td><td>
-          <label class="vis" for=${'pp' + u.user_id}>Acesso de ${u.email}</label>
-          <select id=${'pp' + u.user_id} value=${u.papel} onChange=${(e) => this.mudarPapel(u.user_id, e.target.value)}>${PAPEIS.map((p) => html`<option value=${p[0]}>${p[1]}</option>`)}</select></td></tr>`)}
+        <p class="ajuda">Só os e-mails desta lista conseguem criar acesso e entrar. Qualquer outro e-mail é barrado já na tela de entrada.</p>
+        <div style="overflow-x: auto;"><table><thead><tr><th>E-mail</th><th>Nome</th><th>Acesso</th><th>Situação</th></tr></thead><tbody>
+        ${s.usuarios.map((u) => html`<tr><td>${u.email}</td><td>${u.nome || '—'}</td><td>
+          <label class="vis" for=${'pp' + u.email}>Acesso de ${u.email}</label>
+          <select id=${'pp' + u.email} value=${u.papel} onChange=${(e) => this.mudarMembro(u.email, { papel: e.target.value })}>${PAPEIS.map((p) => html`<option value=${p[0]}>${p[1]}</option>`)}</select></td>
+          <td>${u.ativo ? html`<button class="btn-borda" type="button" onClick=${() => this.mudarMembro(u.email, { ativo: false })}>Tirar o acesso</button>` : html`<button class="btn-borda" type="button" onClick=${() => this.mudarMembro(u.email, { ativo: true, primeiro_acesso_ate: new Date(Date.now() + 30 * 864e5).toISOString() })}>Devolver o acesso</button>`}</td></tr>`)}
         </tbody></table></div>
       </div>
+      <form class="cartao" onSubmit=${(e) => this.liberarEmail(e)} style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;">
+        <h2 class="h2" style="flex-basis: 100%;">Liberar uma pessoa</h2>
+        <div style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 240px;"><label for="nm-email" style="font-size: 14px; font-weight: 600;">E-mail</label>
+          <input id="nm-email" type="email" required value=${(s.novoMembro || {}).email || ''} onInput=${(e) => this.setState({ novoMembro: Object.assign({}, s.novoMembro, { email: e.target.value }) })} style="height: 44px; padding: 0 12px; border: 1px solid #c9cfd8; border-radius: 6px; font-size: 15px;" /></div>
+        <div style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 180px;"><label for="nm-nome" style="font-size: 14px; font-weight: 600;">Nome</label>
+          <input id="nm-nome" value=${(s.novoMembro || {}).nome || ''} onInput=${(e) => this.setState({ novoMembro: Object.assign({}, s.novoMembro, { nome: e.target.value }) })} style="height: 44px; padding: 0 12px; border: 1px solid #c9cfd8; border-radius: 6px; font-size: 15px;" /></div>
+        <div style="display: flex; flex-direction: column; gap: 6px;"><label for="nm-papel" style="font-size: 14px; font-weight: 600;">Acesso</label>
+          <select id="nm-papel" value=${(s.novoMembro || {}).papel || 'operador'} onChange=${(e) => this.setState({ novoMembro: Object.assign({}, s.novoMembro, { papel: e.target.value }) })}>${PAPEIS.map((p) => html`<option value=${p[0]}>${p[1]}</option>`)}</select></div>
+        <button class="btn" type="submit">Liberar</button>
+      </form>
       ${s.historicoVazio ? html`<div class="cartao">
         <h2 class="h2">Carregar o histórico das planilhas</h2>
         <p class="ajuda">Uma vez só, com o banco vazio. Escolha o arquivo do histórico que a Capacity Case enviou. Os dados vão direto para o banco da Aluminier.</p>
@@ -402,7 +426,7 @@ class App extends Logica {
       else if (L.modo === 'criar') r = await sb.auth.signUp({ email: L.email.trim(), password: L.senha, options: { emailRedirectTo: location.origin + location.pathname } });
       else r = await sb.auth.resetPasswordForEmail(L.email.trim(), { redirectTo: location.origin + location.pathname });
       const erro = r && r.error;
-      const ok = L.modo === 'criar' ? 'Pronto. Confirme pelo link que chegou no seu e-mail e depois entre. O administrador libera o seu acesso.' : L.modo === 'senha' ? 'Se o e-mail existir, chega um link para criar uma senha nova.' : '';
+      const ok = L.modo === 'criar' ? 'Pronto. Confirme pelo link que chegou no seu e-mail e depois entre aqui com a mesma senha.' : L.modo === 'senha' ? 'Se o e-mail existir, chega um link para criar uma senha nova.' : '';
       this.setState({ login: Object.assign({}, this.state.login, { ocupado: false, msg: erro ? traduzErro(erro.message) : ok }) });
     };
     return html`<div class="login">
@@ -443,8 +467,8 @@ class App extends Logica {
     </form></div>`;
   }
   telaAguardando() {
-    return html`<div class="login"><div class="login-caixa">${marca()}<h1>Quase lá</h1>
-      <p>Seu acesso foi criado e está esperando o administrador liberar. Assim que ele liberar, é só voltar aqui.</p>
+    return html`<div class="login"><div class="login-caixa">${marca()}<h1>Este e-mail não está liberado</h1>
+      <p>Só quem o administrador liberou entra na Torre. Se você deveria ter acesso, fale com o Luiz e depois clique abaixo.</p>
       <button class="btn" type="button" onClick=${() => this.aoEntrar(this.state.sessao, true)}>Já liberaram, entrar</button>
       <button class="link" type="button" onClick=${() => this.sair()}>Sair</button></div></div>`;
   }
@@ -456,6 +480,7 @@ function marca() {
 }
 
 function traduzErro(m) {
+  if (/Cadastro fechado|Database error saving new user/i.test(m)) return 'Este e-mail não foi liberado na Torre. Fale com o Luiz.';
   if (/Invalid login credentials/i.test(m)) return 'E-mail ou senha não conferem.';
   if (/Email not confirmed/i.test(m)) return 'Falta confirmar o e-mail: abra o link que chegou na sua caixa de entrada.';
   if (/already registered/i.test(m)) return 'Esse e-mail já tem acesso. Use Entrar ou Esqueci a senha.';

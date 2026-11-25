@@ -1,6 +1,7 @@
-// Banco exclusivo da Aluminier (Supabase "Aluminier"). A chave publicável é pública por natureza: quem protege os dados são as regras do banco (RLS).
-export const SUPABASE_URL = 'https://gcdvqiuhjslmtjhmzkxo.supabase.co';
-export const SUPABASE_CHAVE = 'sb_publishable_I5mGEtQlnRDdoeOl1q0X0w_BobTws7-';
-// Sessão com nome próprio: outros sistemas no mesmo domínio (ex.: a LCA em metal.capacitycase.com.br/lca) não derrubam esta.
+// Banco: o do CRM Aliança (CRM_Alianca_CapacityCase), com tabelas alu_* e regras só da Aluminier (decisão do Luiz em 25/11/2026: sem banco pago à parte).
+// A chave publicável é pública por natureza: quem protege os dados são as regras do banco (RLS) e a lista alu_membros.
+export const SUPABASE_URL = 'https://iuotvottnailofxbaynx.supabase.co';
+export const SUPABASE_CHAVE = 'sb_publishable_LgS5rLTzl3NMfgGhlPEM_Q_eoP-NOhs';
+// Sessão com nome próprio: o Aliança e a LCA no mesmo navegador não derrubam esta.
 export const STORAGE_KEY = 'sb-aluminier-auth';
 export const EMPRESA = 'Aluminier';
